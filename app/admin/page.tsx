@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRealtimePresence } from "@/lib/hooks/useRealtimePresence";
+import { useStaggerIn } from "@/lib/hooks/useStaggerIn";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Attendance, Employee } from "@/lib/types";
 import { StatCard } from "@/components/admin/StatCard";
@@ -74,20 +75,22 @@ export default function AdminDashboardPage() {
     return { row, employee, arrived, lateMinutes };
   });
 
+  const containerRef = useStaggerIn(0.05);
+
   return (
-    <div className="space-y-6">
-      <h1 className="font-heading text-3xl uppercase tracking-[4px] text-primary">
+    <div ref={containerRef} className="space-y-6">
+      <h1 data-animate className="font-heading text-3xl uppercase tracking-[4px] text-primary">
         Dashboard
       </h1>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div data-animate className="grid gap-4 md:grid-cols-3">
         <StatCard label="Currently IN" value={stats.currentlyIn} />
         <StatCard label="Late Today" value={stats.late} />
         <StatCard label="Absent Today" value={stats.absent} />
       </div>
 
       {/* ── Presence Map ──────────────────────────────────────── */}
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div data-animate className="rounded-xl border border-border bg-surface p-4 hover-lift">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-heading text-xl uppercase tracking-[3px] text-primary">
             Office Presence
@@ -102,7 +105,7 @@ export default function AdminDashboardPage() {
         />
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div data-animate className="rounded-xl border border-border bg-surface p-4 hover-lift">
         <h2 className="font-heading text-xl uppercase tracking-[3px] text-primary">
           Currently IN
         </h2>
@@ -132,7 +135,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div data-animate className="rounded-xl border border-border bg-surface p-4 hover-lift">
         <h2 className="font-heading text-xl uppercase tracking-[3px] text-primary">
           Late Arrivals
         </h2>

@@ -38,6 +38,114 @@
   }
 }
 
+/* ── Motion keyframes ──────────────────────────────────────────────────────── */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes ripple-out {
+  0%   { transform: scale(0.8); opacity: 0.55; }
+  100% { transform: scale(2.4); opacity: 0;    }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0   rgba(255,215,0,0.0),  0 0 0 0   rgba(255,215,0,0.0);  }
+  50%       { box-shadow: 0 0 16px 4px rgba(255,215,0,0.18), 0 0 32px 8px rgba(255,215,0,0.08); }
+}
+
+@keyframes ring-orbit {
+  0%   { transform: rotate(0deg);   }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes digit-in {
+  from { opacity: 0; transform: translateY(8px);  }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+
+@keyframes digit-out {
+  from { opacity: 1; transform: translateY(0);    }
+  to   { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes minute-pulse {
+  0%, 100% { opacity: 1; }
+  30%       { opacity: 0.55; }
+}
+
+@keyframes nav-dot-in {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes check-draw {
+  from { stroke-dashoffset: 24; }
+  to   { stroke-dashoffset: 0;  }
+}
+
+/* ── Utility animation classes ─────────────────────────────────────────────── */
+
+.animate-fade-up {
+  animation: fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-fade-in {
+  animation: fade-in 0.35s ease both;
+}
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 0%,
+    rgba(255,255,255,0.09) 40%,
+    rgba(255,255,255,0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+.animate-glow-pulse {
+  animation: glow-pulse 2.8s ease-in-out infinite;
+}
+.animate-ripple {
+  animation: ripple-out 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.animate-ring-orbit {
+  animation: ring-orbit 1.2s linear infinite;
+}
+.animate-minute-pulse {
+  animation: minute-pulse 0.6s ease-in-out;
+}
+.animate-nav-dot {
+  animation: nav-dot-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Hover lift ─────────────────────────────────────────────────────────────── */
+.hover-lift {
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+
+/* ── Tabular numbers for timer ──────────────────────────────────────────────── */
+.timer-digits {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+}
+
 /* ── Leaflet popup dark theme ──────────────────────────────────── */
 .leaflet-popup-content-wrapper {
   background: #1a1a1a !important;

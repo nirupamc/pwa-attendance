@@ -15,7 +15,7 @@ export const BottomNav = () => {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-surface">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-surface/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-3xl items-center justify-around px-4 py-3">
         {navItems.map((item) => {
           const active = pathname === item.href;
@@ -27,17 +27,26 @@ export const BottomNav = () => {
               className="flex flex-col items-center gap-1 text-xs"
             >
               <Icon
-                className={active ? "text-primary" : "text-text-muted"}
                 size={20}
+                className={[
+                  "transition-all duration-200",
+                  active
+                    ? "text-primary scale-110"
+                    : "text-text-muted hover:text-text-primary",
+                ].join(" ")}
               />
               {active && (
-                <span className="uppercase tracking-[1px] text-primary">
+                <span className="uppercase tracking-[1px] text-primary animate-fade-in">
                   {item.label}
                 </span>
               )}
-              {active && (
-                <span className="mt-1 h-0.5 w-6 rounded-full bg-primary" />
-              )}
+              <span
+                className={[
+                  "mt-0.5 h-0.5 rounded-full bg-primary",
+                  "transition-all duration-300 ease-out",
+                  active ? "w-6 opacity-100 animate-nav-dot" : "w-0 opacity-0",
+                ].join(" ")}
+              />
             </Link>
           );
         })}
