@@ -10,7 +10,9 @@ interface AttendanceStatus {
   refresh: () => Promise<void>;
 }
 
-export const useAttendanceStatus = (userId?: string | null): AttendanceStatus => {
+export const useAttendanceStatus = (
+  userId?: string | null,
+): AttendanceStatus => {
   const [lastPunch, setLastPunch] = useState<Attendance | null>(null);
   const [todayPunches, setTodayPunches] = useState<Attendance[]>([]);
 

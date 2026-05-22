@@ -46,8 +46,8 @@ export function getShiftDayStart(): Date {
       shiftISTDay.getUTCDate(),
       4,
       0,
-      0
-    ) - IST_OFFSET_MS
+      0,
+    ) - IST_OFFSET_MS,
   );
 }
 

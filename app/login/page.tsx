@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getDeviceSecurityPayload } from "@/lib/security/device-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -50,9 +51,52 @@ export default function LoginPage() {
       .single();
 
     if (profile?.must_change_password) {
+      try {
+        const payload = await getDeviceSecurityPayload();
+        const res = await fetch("/api/device/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = (await res.json().catch(() => null)) as
+          | { trusted?: boolean; message?: string }
+          | null;
+        if (!res.ok || !data?.trusted) {
+          localStorage.setItem("tt_device_trust", "blocked");
+          localStorage.setItem(
+            "tt_device_message",
+            data?.message || "This account is registered on another trusted device."
+          );
+        } else {
+          localStorage.setItem("tt_device_trust", "trusted");
+          localStorage.removeItem("tt_device_message");
+        }
+      } catch {}
       router.replace("/change-password");
       return;
     }
+
+    try {
+      const payload = await getDeviceSecurityPayload();
+      const res = await fetch("/api/device/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { trusted?: boolean; message?: string }
+        | null;
+      if (!res.ok || !data?.trusted) {
+        localStorage.setItem("tt_device_trust", "blocked");
+        localStorage.setItem(
+          "tt_device_message",
+          data?.message || "This account is registered on another trusted device."
+        );
+      } else {
+        localStorage.setItem("tt_device_trust", "trusted");
+        localStorage.removeItem("tt_device_message");
+      }
+    } catch {}
 
     router.replace(profile?.role === "admin" ? "/admin" : "/home");
   };

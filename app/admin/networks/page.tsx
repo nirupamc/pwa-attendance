@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
+  MapPin,
   RefreshCw,
   Wifi,
 } from "lucide-react";
@@ -38,6 +39,10 @@ export default function NetworksPage() {
   const [detecting, setDetecting] = useState(false);
   const [ipInput, setIpInput] = useState("");
   const [label, setLabel] = useState("Main Office");
+  const [latInput, setLatInput] = useState("");
+  const [lngInput, setLngInput] = useState("");
+  const [radiusInput, setRadiusInput] = useState("200");
+  const [geofenceEnabled, setGeofenceEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const fetchConfig = async () => {
@@ -62,6 +67,10 @@ export default function NetworksPage() {
     setDetectedIP(null);
     setIpInput("");
     setLabel(config?.label ?? "Main Office");
+    setLatInput(config?.office_latitude?.toString() ?? "");
+    setLngInput(config?.office_longitude?.toString() ?? "");
+    setRadiusInput(config?.allowed_radius_meters?.toString() ?? "200");
+    setGeofenceEnabled(config?.geofence_enabled ?? false);
   };
 
   const handleDetect = async () => {
@@ -112,6 +121,10 @@ export default function NetworksPage() {
       is_active: true,
       added_by: user?.id ?? null,
       updated_at: new Date().toISOString(),
+      office_latitude: latInput.trim() ? parseFloat(latInput.trim()) : null,
+      office_longitude: lngInput.trim() ? parseFloat(lngInput.trim()) : null,
+      allowed_radius_meters: parseInt(radiusInput.trim() || "200", 10),
+      geofence_enabled: geofenceEnabled,
     };
 
     let error;
@@ -182,6 +195,35 @@ export default function NetworksPage() {
                     {formatDate(config.updated_at)}
                   </dd>
                 </div>
+                {config.geofence_enabled && (
+                  <>
+                    <div className="flex justify-between">
+                      <dt className="text-text-muted">Geofence</dt>
+                      <dd className="text-success">Enabled</dd>
+                    </div>
+                    {config.office_latitude != null && (
+                      <div className="flex justify-between">
+                        <dt className="text-text-muted">Coords</dt>
+                        <dd className="font-mono text-text-primary text-xs">
+                          {config.office_latitude.toFixed(6)},{" "}
+                          {config.office_longitude?.toFixed(6)}
+                        </dd>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <dt className="text-text-muted">Radius</dt>
+                      <dd className="text-text-primary">
+                        {config.allowed_radius_meters ?? 200} m
+                      </dd>
+                    </div>
+                  </>
+                )}
+                {!config.geofence_enabled && (
+                  <div className="flex justify-between">
+                    <dt className="text-text-muted">Geofence</dt>
+                    <dd className="text-text-muted">Observe mode (disabled)</dd>
+                  </div>
+                )}
               </dl>
               <Button
                 className="mt-4 bg-primary text-background hover:bg-primary-dark"
@@ -313,6 +355,85 @@ export default function NetworksPage() {
                 />
                 <p className="text-xs text-text-muted">
                   A name to identify this network.
+                </p>
+              </div>
+
+              {/* Geofence configuration */}
+              <div className="rounded-xl border border-border bg-surface-2 p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="text-primary" size={16} />
+                    <span className="font-heading text-sm uppercase tracking-widest text-primary">
+                      Geofence (Optional)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={geofenceEnabled}
+                    onClick={() => setGeofenceEnabled((v) => !v)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      geofenceEnabled ? "bg-primary" : "bg-border"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${
+                        geofenceEnabled ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <p className="text-xs text-text-muted">
+                  When enabled, the system captures employee GPS location at
+                  punch time and calculates distance from the office. Currently
+                  in <strong>observe mode</strong> — data is logged but
+                  attendance is never blocked.
+                </p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-[2px] text-text-muted">
+                      Latitude
+                    </label>
+                    <Input
+                      placeholder="e.g. 12.971599"
+                      value={latInput}
+                      onChange={(e) => setLatInput(e.target.value)}
+                      disabled={!geofenceEnabled}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-[2px] text-text-muted">
+                      Longitude
+                    </label>
+                    <Input
+                      placeholder="e.g. 77.594566"
+                      value={lngInput}
+                      onChange={(e) => setLngInput(e.target.value)}
+                      disabled={!geofenceEnabled}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs uppercase tracking-[2px] text-text-muted">
+                    Allowed radius (meters)
+                  </label>
+                  <Input
+                    placeholder="200"
+                    value={radiusInput}
+                    onChange={(e) => setRadiusInput(e.target.value)}
+                    disabled={!geofenceEnabled}
+                  />
+                  <p className="text-xs text-text-muted">
+                    Recommended 200–300 m for indoor/multi-floor offices.
+                  </p>
+                </div>
+
+                <p className="text-xs text-text-muted">
+                  Tip: find your office coordinates on Google Maps — right-click
+                  the building and copy the latitude and longitude.
                 </p>
               </div>
 

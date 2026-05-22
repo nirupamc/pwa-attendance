@@ -5,6 +5,10 @@ import {
   corsHeaders,
   isOptionsRequest,
 } from "../_shared/supabase.ts";
+import {
+  evaluateDeviceTrust,
+  userFacingDeviceBlockedMessage,
+} from "../_shared/device.ts";
 
 const getClientIP = (request: Request): string | null => {
   const forwarded = request.headers.get("x-forwarded-for");
@@ -19,6 +23,18 @@ const getClientIP = (request: Request): string | null => {
   );
 };
 
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6_371_000;
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(Δφ / 2) ** 2 +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 Deno.serve(async (request) => {
   if (isOptionsRequest(request)) {
     return new Response("ok", { headers: corsHeaders });
@@ -26,7 +42,21 @@ Deno.serve(async (request) => {
 
   try {
     const { user } = await getUserFromRequest(request);
-    const { userId, type, qrToken } = await request.json();
+    const {
+      userId,
+      type,
+      qrToken,
+      deviceToken,
+      fingerprintHash,
+      fingerprintProfile,
+      deviceName,
+      deviceBrowser,
+      devicePlatform,
+      latitude,
+      longitude,
+      accuracy,
+      locationCapturedAt,
+    } = await request.json();
 
     if (userId && userId !== user.id) {
       return jsonResponse({ error: "Unauthorized" }, 403);
@@ -37,6 +67,7 @@ Deno.serve(async (request) => {
 
     const supabase = createSupabaseAdmin();
     const isDev = Deno.env.get("ENVIRONMENT") === "development";
+    const userAgent = request.headers.get("user-agent");
 
     // ── TIME WINDOW CHECK (skip in dev) ──────────────────────────────
     if (!isDev) {
@@ -59,6 +90,88 @@ Deno.serve(async (request) => {
 
     const clientIP = getClientIP(request);
 
+    const logEvent = async (
+      eventType: string,
+      message: string,
+      details: Record<string, unknown> = {},
+    ) => {
+      await supabase.from("device_security_events").insert({
+        user_id: user.id,
+        event_type: eventType,
+        message,
+        ip_address: clientIP,
+        user_agent: userAgent,
+        details,
+      });
+    };
+
+    const { data: employee } = await supabase
+      .from("employees")
+      .select(
+        "device_token_hash, fingerprint_hash, fingerprint_profile, device_status, device_registered_at",
+      )
+      .eq("id", user.id)
+      .single();
+
+    if (!employee || !deviceToken || !fingerprintHash) {
+      await logEvent(
+        "attendance_device_blocked",
+        "Attendance blocked due to missing device data.",
+      );
+      return jsonResponse(
+        { success: false, error: userFacingDeviceBlockedMessage() },
+        403,
+      );
+    }
+
+    const trust = await evaluateDeviceTrust({
+      deviceStatus: employee.device_status,
+      storedTokenHash: employee.device_token_hash,
+      storedFingerprintHash: employee.fingerprint_hash,
+      storedProfile: employee.fingerprint_profile,
+      incomingToken: deviceToken,
+      incomingFingerprintHash: fingerprintHash,
+      incomingProfile: fingerprintProfile,
+    });
+
+    if (!trust.trusted) {
+      await logEvent(
+        "attendance_device_mismatch",
+        "Attendance blocked due to device mismatch.",
+        { code: trust.code, driftScore: trust.driftScore },
+      );
+      return jsonResponse(
+        { success: false, error: userFacingDeviceBlockedMessage() },
+        403,
+      );
+    }
+
+    await supabase
+      .from("employees")
+      .update({
+        last_device_seen_at: new Date().toISOString(),
+        last_office_ip: clientIP,
+        device_name: deviceName ?? null,
+        device_browser: deviceBrowser ?? null,
+        device_platform: devicePlatform ?? null,
+        device_user_agent: userAgent,
+        ...(trust.driftAccepted
+          ? {
+              fingerprint_hash: fingerprintHash,
+              fingerprint_profile: trust.normalizedProfile,
+            }
+          : {}),
+      })
+      .eq("id", user.id);
+
+    if (trust.driftAccepted) {
+      await logEvent(
+        "fingerprint_drift_accepted",
+        "Minor browser/device drift accepted.",
+        { driftScore: trust.driftScore },
+      );
+    }
+
     if (!isDev) {
       if (!clientIP) {
         return jsonResponse(
@@ -73,7 +186,7 @@ Deno.serve(async (request) => {
 
       const { data: officeConfig } = await supabase
         .from("office_config")
-        .select("public_ip, label")
+        .select("public_ip, label, office_latitude, office_longitude, allowed_radius_meters, geofence_enabled")
         .eq("is_active", true)
         .maybeSingle();
 
@@ -117,6 +230,59 @@ Deno.serve(async (request) => {
       );
     }
 
+    // ── GEOFENCE — observe mode, never blocks attendance ──────────────
+    const geofenceFields: Record<string, unknown> = {};
+    {
+      const { data: geoConfig } = await supabase
+        .from("office_config")
+        .select("office_latitude, office_longitude, allowed_radius_meters, geofence_enabled")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (
+        geoConfig?.geofence_enabled &&
+        geoConfig.office_latitude != null &&
+        geoConfig.office_longitude != null
+      ) {
+        if (latitude != null && longitude != null) {
+          const dist = haversineMeters(
+            geoConfig.office_latitude,
+            geoConfig.office_longitude,
+            latitude,
+            longitude,
+          );
+          const radius = geoConfig.allowed_radius_meters ?? 200;
+          const effectiveDist = dist - (accuracy ?? 0);
+          const passed = effectiveDist <= radius;
+          Object.assign(geofenceFields, {
+            punch_latitude: latitude,
+            punch_longitude: longitude,
+            location_accuracy: accuracy ?? null,
+            geofence_distance_meters: Math.round(dist * 100) / 100,
+            geofence_passed: passed,
+            location_captured_at: locationCapturedAt ?? null,
+            geofence_validation_mode: "observe",
+            geofence_reason: passed ? "inside_radius" : "outside_radius",
+          });
+          console.info(
+            `[geofence] dist=${Math.round(dist)}m effectiveDist=${Math.round(effectiveDist)}m radius=${radius}m passed=${passed}`,
+          );
+        } else {
+          Object.assign(geofenceFields, {
+            geofence_validation_mode: "observe",
+            geofence_reason: "location_denied",
+          });
+          console.info("[geofence] No coordinates received; reason=location_denied");
+        }
+      } else {
+        Object.assign(geofenceFields, {
+          geofence_validation_mode: "observe",
+          geofence_reason: geoConfig ? "geofence_disabled" : "config_missing",
+        });
+      }
+    }
+    // ── END GEOFENCE ──────────────────────────────────────────────────
+
     const { data, error } = await supabase
       .from("attendance")
       .insert({
@@ -125,6 +291,7 @@ Deno.serve(async (request) => {
         punched_at: new Date().toISOString(),
         ip_at_punch: clientIP,
         qr_verified: true,
+        ...geofenceFields,
       })
       .select("punched_at, type")
       .single();

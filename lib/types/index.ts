@@ -1,4 +1,5 @@
 export type EmployeeRole = "employee" | "admin";
+export type DeviceStatus = "active" | "pending_rebind" | "revoked";
 
 export interface Employee {
   id: string;
@@ -7,6 +8,18 @@ export interface Employee {
   employee_id: string;
   role: EmployeeRole;
   registered_device_id: string | null;
+  device_token_hash: string | null;
+  fingerprint_hash: string | null;
+  fingerprint_profile: Record<string, unknown>;
+  device_registered_at: string | null;
+  last_device_seen_at: string | null;
+  last_office_ip: string | null;
+  device_status: DeviceStatus;
+  device_name: string | null;
+  device_browser: string | null;
+  device_platform: string | null;
+  device_user_agent: string | null;
+  device_rotated_at: string | null;
   must_change_password: boolean;
   avatar_url: string | null;
   created_at: string;
@@ -29,6 +42,10 @@ export interface OfficeConfig {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  office_latitude: number | null;
+  office_longitude: number | null;
+  allowed_radius_meters: number;
+  geofence_enabled: boolean;
 }
 
 export type AttendanceType = "IN" | "OUT";
@@ -42,6 +59,14 @@ export interface Attendance {
   network_label: string | null;
   ip_at_punch: string | null;
   qr_verified: boolean;
+  punch_latitude: number | null;
+  punch_longitude: number | null;
+  location_accuracy: number | null;
+  geofence_distance_meters: number | null;
+  geofence_passed: boolean | null;
+  location_captured_at: string | null;
+  geofence_validation_mode: string | null;
+  geofence_reason: string | null;
 }
 
 export interface OfficeQrCode {
@@ -73,5 +98,16 @@ export interface PushSubscriptionRow {
   id: string;
   user_id: string;
   subscription: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface DeviceSecurityEvent {
+  id: string;
+  user_id: string | null;
+  event_type: string;
+  message: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  details: Record<string, unknown>;
   created_at: string;
 }
