@@ -5,6 +5,7 @@ import { useRealtimePresence } from "@/lib/hooks/useRealtimePresence";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Attendance, Employee } from "@/lib/types";
 import { StatCard } from "@/components/admin/StatCard";
+import { PresenceMapWrapper } from "@/components/admin/PresenceMapWrapper";
 import { formatTime, diffSeconds } from "@/lib/utils/time";
 
 export default function AdminDashboardPage() {
@@ -83,6 +84,22 @@ export default function AdminDashboardPage() {
         <StatCard label="Currently IN" value={stats.currentlyIn} />
         <StatCard label="Late Today" value={stats.late} />
         <StatCard label="Absent Today" value={stats.absent} />
+      </div>
+
+      {/* ── Presence Map ──────────────────────────────────────── */}
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-heading text-xl uppercase tracking-[3px] text-primary">
+            Office Presence
+          </h2>
+          <span className="text-xs text-text-muted">
+            {presentCards.length} employee{presentCards.length !== 1 ? "s" : ""} currently in
+          </span>
+        </div>
+        <PresenceMapWrapper
+          presentEmployees={presentEmployees}
+          employeeMap={employeeMap}
+        />
       </div>
 
       <div className="rounded-xl border border-border bg-surface p-4">
