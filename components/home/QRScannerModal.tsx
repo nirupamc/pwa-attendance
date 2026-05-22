@@ -20,6 +20,7 @@ export const QRScannerModal = ({
 }: QRScannerModalProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<QrScanner | null>(null);
+  const animFrameRef = useRef<number | null>(null); // BarcodeDetector rAF loop id
   const timeoutRef = useRef<number | null>(null);
   const lastDecodeErrorRef = useRef<string | null>(null);
   const lastDecodeErrorAtRef = useRef(0);
@@ -42,6 +43,12 @@ export const QRScannerModal = ({
 
   const stopScanner = useCallback(async () => {
     clearTimeoutRef();
+
+    // Cancel any running BarcodeDetector rAF loop
+    if (animFrameRef.current !== null) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
 
     const scanner = scannerRef.current;
     scannerRef.current = null;
@@ -82,11 +89,14 @@ export const QRScannerModal = ({
     async (token: string) => {
       try {
         setError(null);
+        console.time('3_validate_qr_api');
         const res = await fetch("/api/validate-qr", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ secretToken: token }),
         });
+        console.timeEnd('3_validate_qr_api');
+        console.timeEnd('TOTAL_SCAN_FLOW');
         const payload = await res.json().catch(() => null);
         if (!res.ok || !payload?.valid) {
           setIsInvalid(true);
@@ -96,6 +106,8 @@ export const QRScannerModal = ({
         }
         onVerified(token);
       } catch {
+        console.timeEnd('3_validate_qr_api');
+        console.timeEnd('TOTAL_SCAN_FLOW');
         setIsInvalid(true);
         setTimeout(() => setIsInvalid(false), 1000);
         setError("Unable to validate the QR code. Please try again.");
@@ -111,6 +123,9 @@ export const QRScannerModal = ({
     lastDecodeErrorAtRef.current = 0;
     setIsStarting(true);
 
+    console.time('TOTAL_SCAN_FLOW');
+    console.time('1_camera_start');
+
     if (!videoRef.current) {
       setIsStarting(false);
       setError("Camera view is not ready yet. Please try again.");
@@ -122,22 +137,78 @@ export const QRScannerModal = ({
         await stopScanner();
       }
 
-      addDebugLog("Checking camera support...");
-      const hasCamera = await QrScanner.hasCamera().catch(() => false);
-      addDebugLog(`Camera support: ${hasCamera ? "available" : "not available"}`);
-
-      if (!hasCamera) {
-        setIsStarting(false);
-        setError("No camera was found on this device.");
-        toast.error("No camera was found on this device.");
-        return;
-      }
-
       addDebugLog("Creating live QR scanner...");
 
+      // ── Fix 2: Use native BarcodeDetector where available (Chrome/Android/Safari 17+).
+      // Runs on the GPU-accelerated native stack — typically detects in <200ms.
+      if ('BarcodeDetector' in window) {
+        addDebugLog("Using native BarcodeDetector...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { exact: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 60 },
+          },
+          audio: false,
+        });
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+
+        // Fix 1: Enable continuous autofocus so the lens stays sharp on paper QR codes.
+        const nativeTrack = stream.getVideoTracks()[0];
+        if (nativeTrack) {
+          await nativeTrack.applyConstraints({
+            advanced: [{ focusMode: 'continuous' } as any],
+          }).catch(() => {});
+        }
+
+        setIsScanning(true);
+        setIsStarting(false);
+        console.timeEnd('1b_scanner_start');
+        console.time('2_qr_detection');
+        addDebugLog("Camera ready (native decoder). Looking for QR code...");
+
+        const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+        const scan = async () => {
+          // Bail out if stopScanner has already cleared the stream
+          if (!videoRef.current?.srcObject) return;
+          try {
+            const results = await detector.detect(videoRef.current);
+            if (results.length > 0) {
+              console.timeEnd('2_qr_detection');
+              console.log('[QR] Native hit:', results[0].rawValue.slice(0, 32));
+              addDebugLog(`QR detected: ${results[0].rawValue.slice(0, 24)}...`);
+              clearTimeoutRef();
+              animFrameRef.current = null;
+              await stopScanner();
+              await handleScanResult(results[0].rawValue);
+              return;
+            }
+          } catch {}
+          // Only re-queue if the scanner hasn't been stopped
+          if (videoRef.current?.srcObject) {
+            animFrameRef.current = requestAnimationFrame(scan);
+          }
+        };
+        animFrameRef.current = requestAnimationFrame(scan);
+
+        timeoutRef.current = window.setTimeout(async () => {
+          addDebugLog("Timeout: no QR code detected after 15 seconds");
+          setError("No QR code found after 15 seconds. Please try again.");
+          toast.error("No QR code found after 15 seconds. Please try again.");
+          await stopScanner();
+        }, 15000);
+        return; // skip QrScanner construction
+      }
+
+      // ── Fallback: ZXing-based QrScanner for Firefox and older Safari.
       const scanner = new QrScanner(
         videoRef.current,
         async (result) => {
+          console.timeEnd('1_camera_start');
+          console.timeEnd('2_qr_detection');
+          console.log('[QR] Token length:', result.data.length, '| Preview:', result.data.slice(0, 32));
           addDebugLog(
             `QR detected: ${result.data.slice(0, 24)}${result.data.length > 24 ? "..." : ""}`
           );
@@ -147,17 +218,22 @@ export const QRScannerModal = ({
         },
         {
           preferredCamera: "environment",
-          calculateScanRegion: (video) => ({
-            x: 0,
-            y: 0,
-            width: video.videoWidth,
-            height: video.videoHeight,
-            downScaledWidth: Math.min(video.videoWidth, 960),
-            downScaledHeight: Math.min(video.videoHeight, 960),
-          }),
+          // Fix 3: Crop to centre 400×400 — QR codes are small, scanning the full
+          // frame wastes cycles and the centre crop is where users naturally aim.
+          calculateScanRegion: (video) => {
+            const size = Math.min(video.videoWidth, video.videoHeight, 400);
+            return {
+              x: Math.round((video.videoWidth - size) / 2),
+              y: Math.round((video.videoHeight - size) / 2),
+              width: size,
+              height: size,
+              downScaledWidth: size,
+              downScaledHeight: size,
+            };
+          },
           highlightScanRegion: true,
           highlightCodeOutline: true,
-          maxScansPerSecond: 12,
+          maxScansPerSecond: 25, // Fix 4: was 12
           returnDetailedScanResult: true,
           onDecodeError: (decodeError) => {
             const message =
@@ -179,8 +255,21 @@ export const QRScannerModal = ({
       setIsScanning(true);
       setIsStarting(false);
       addDebugLog("Starting camera stream...");
+      console.time('1b_scanner_start');
       await scanner.start();
+      console.timeEnd('1b_scanner_start');
+      console.time('2_qr_detection');
       addDebugLog("Camera stream started. Looking for QR code...");
+
+      // Fix 1: Enable continuous autofocus after stream is live.
+      const track = videoRef.current?.srcObject instanceof MediaStream
+        ? (videoRef.current.srcObject as MediaStream).getVideoTracks()[0]
+        : null;
+      if (track) {
+        await track.applyConstraints({
+          advanced: [{ focusMode: 'continuous' } as any],
+        }).catch(() => {});
+      }
 
       timeoutRef.current = window.setTimeout(async () => {
         addDebugLog("Timeout: no QR code detected after 15 seconds");
