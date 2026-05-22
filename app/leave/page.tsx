@@ -39,12 +39,42 @@ export default function LeavePage() {
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user?.id) {
-        setUserId(data.user.id);
-        fetchRequests(data.user.id);
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let isMounted = true;
+
+    const init = async () => {
+      const { data } = await supabase.auth.getUser();
+      const uid = data.user?.id;
+      if (!uid || !isMounted) return;
+
+      setUserId(uid);
+      await fetchRequests(uid);
+
+      channel = supabase
+        .channel(`employee-leave-requests-${uid}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "leave_requests",
+            filter: `user_id=eq.${uid}`,
+          },
+          () => {
+            void fetchRequests(uid);
+          }
+        )
+        .subscribe();
+    };
+
+    void init();
+
+    return () => {
+      isMounted = false;
+      if (channel) {
+        void supabase.removeChannel(channel);
       }
-    });
+    };
   }, []);
 
   const submitRequest = async () => {

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useAttendanceStatus } from "@/lib/hooks/useAttendanceStatus";
 import { useOnlineStatus } from "@/lib/hooks/useOnlineStatus";
+import { useShiftTime } from "@/lib/hooks/useShiftTime";
 import { formatDate, formatTime } from "@/lib/utils/time";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { OfflineBanner } from "@/components/layout/OfflineBanner";
@@ -17,7 +18,8 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
-  const { isOnline } = useOnlineStatus();
+  const { isOfficeNetwork, networkStatus } = useOnlineStatus();
+  const { isWithinWindow, windowMessage } = useShiftTime();
   const [userId, setUserId] = useState<string | null>(null);
   const [fullName, setFullName] = useState<string>("Employee");
   const [qrToken, setQrToken] = useState<string | null>(null);
@@ -50,6 +52,21 @@ export default function HomePage() {
     return "GOOD EVENING";
   }, []);
 
+  const punchDisabled =
+    !isOfficeNetwork || networkStatus === "checking" || !isWithinWindow;
+
+  const punchHelperText = !isWithinWindow
+    ? windowMessage
+    : networkStatus === "office_wifi"
+    ? "Scan the office QR code"
+    : networkStatus === "wrong_network"
+    ? "Connect to office WiFi to punch in"
+    : networkStatus === "offline"
+    ? "No internet connection"
+    : networkStatus === "checking"
+    ? "Verifying network..."
+    : "Network not configured — contact admin";
+
   const handleVerified = (token: string) => {
     setQrToken(token);
     setShowScanner(false);
@@ -57,25 +74,21 @@ export default function HomePage() {
   };
 
   const handleConfirm = async () => {
-    if (!userId || !qrToken || !isOnline) return;
-    const supabase = createSupabaseBrowserClient();
+    if (!userId || !qrToken || !isOfficeNetwork || !isWithinWindow) {
+      toast.error(
+        !isWithinWindow
+          ? windowMessage || "Punching is only available from 5:45 PM to 3:30 AM."
+          : "You must be connected to the office WiFi to punch in or out."
+      );
+      return;
+    }
     const action = isIn ? "OUT" : "IN";
-    const connectionObj = (
-      navigator as Navigator & {
-        connection?: { type?: string; effectiveType?: string };
-      }
-    ).connection;
-    const connectionType =
-      connectionObj?.type || connectionObj?.effectiveType || "unknown";
-    const networkLabel = connectionType.toLowerCase().includes("wifi")
-      ? "WiFi"
-      : "Mobile Data";
 
     try {
       const res = await fetch("/api/punch-attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, type: action, qrToken, networkLabel }),
+        body: JSON.stringify({ userId, type: action, qrToken }),
       });
       const payload = await res.json().catch(() => null);
       if (!res.ok || payload?.error) {
@@ -111,9 +124,13 @@ export default function HomePage() {
         <div className="pt-2">
           <PunchButton
             isIn={isIn}
-            disabled={!isOnline}
+            disabled={punchDisabled}
+            helperText={punchHelperText}
             onClick={() => {
-              if (!isOnline) return;
+              if (punchDisabled) {
+                toast.error("You must be connected to the office WiFi to punch in or out.");
+                return;
+              }
               setShowScanner(true);
             }}
           />

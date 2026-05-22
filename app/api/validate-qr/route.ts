@@ -6,7 +6,7 @@ const json = (body: unknown, status = 200) => NextResponse.json(body, { status }
 
 export async function POST(request: Request) {
   try {
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseServerClient({ mutableCookies: true });
     const {
       data: { user },
     } = await supabase.auth.getUser();

@@ -24,23 +24,81 @@ export default function AdminLeavePage() {
 
   const fetchRequests = async (uid: string) => {
     const supabase = createSupabaseBrowserClient();
-    const query = supabase
+    const { data: leaveRows, error: leaveError } = await supabase
       .from("leave_requests")
-      .select("*, employee:employees(*)")
+      .select("*")
       .neq("user_id", uid)
       .order("created_at", { ascending: false });
 
-    const { data } = await query;
-    setRequests((data ?? []) as LeaveWithEmployee[]);
+    if (leaveError) {
+      toast.error("Unable to load leave requests.");
+      setRequests([]);
+      return;
+    }
+
+    const leaves = (leaveRows ?? []) as LeaveRequest[];
+    if (leaves.length === 0) {
+      setRequests([]);
+      return;
+    }
+
+    const userIds = [...new Set(leaves.map((request) => request.user_id))];
+    const { data: employeesRows } = await supabase
+      .from("employees")
+      .select("id,full_name,employee_id")
+      .in("id", userIds);
+
+    const employeeById = new Map(
+      ((employeesRows ?? []) as Partial<Employee>[])
+        .filter((employee): employee is Partial<Employee> & { id: string } => !!employee.id)
+        .map((employee) => [employee.id, employee])
+    );
+
+    const merged = leaves.map((request) => ({
+      ...request,
+      employee: (employeeById.get(request.user_id) ?? {
+        id: request.user_id,
+        full_name: "Employee",
+        employee_id: "EMP",
+      }) as Employee,
+    }));
+
+    setRequests(merged as LeaveWithEmployee[]);
   };
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user?.id) return;
-      setAdminId(data.user.id);
-      fetchRequests(data.user.id);
-    });
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let isMounted = true;
+
+    const init = async () => {
+      const { data } = await supabase.auth.getUser();
+      const uid = data.user?.id;
+      if (!uid || !isMounted) return;
+
+      setAdminId(uid);
+      await fetchRequests(uid);
+
+      channel = supabase
+        .channel(`admin-leave-requests-${uid}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "leave_requests" },
+          () => {
+            void fetchRequests(uid);
+          }
+        )
+        .subscribe();
+    };
+
+    void init();
+
+    return () => {
+      isMounted = false;
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+    };
   }, []);
 
   const filtered = requests.filter((request) => {

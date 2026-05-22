@@ -39,7 +39,21 @@ CREATE TABLE IF NOT EXISTS public.attendance (
   punched_at timestamptz NOT NULL DEFAULT now(),
   bssid_at_scan text,
   network_label text,
+  ip_at_punch text,
   qr_verified boolean NOT NULL DEFAULT false
+);
+
+ALTER TABLE public.attendance
+  ADD COLUMN IF NOT EXISTS ip_at_punch text;
+
+CREATE TABLE IF NOT EXISTS public.office_config (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  label text NOT NULL DEFAULT 'Office Network',
+  public_ip text NOT NULL,
+  added_by uuid REFERENCES public.employees (id) ON DELETE SET NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.office_qr_codes (
@@ -134,6 +148,15 @@ CREATE POLICY "employees_delete_admin"
   ON public.employees FOR DELETE
   TO authenticated
   USING (public.is_admin());
+
+ALTER TABLE public.office_config ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "office_config_admin_all" ON public.office_config;
+CREATE POLICY "office_config_admin_all"
+  ON public.office_config FOR ALL
+  TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 ALTER TABLE public.office_networks ENABLE ROW LEVEL SECURITY;
 

@@ -1,7 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-export const createSupabaseServerClient = () => {
+type SupabaseServerClientOptions = {
+  mutableCookies?: boolean;
+};
+
+export const createSupabaseServerClient = ({
+  mutableCookies = false,
+}: SupabaseServerClientOptions = {}) => {
   const cookieStore = cookies();
 
   return createServerClient(
@@ -13,9 +19,11 @@ export const createSupabaseServerClient = () => {
           return cookieStore.get(name)?.value;
         },
         set(name, value, options) {
+          if (!mutableCookies) return;
           cookieStore.set({ name, value, ...options });
         },
         remove(name, options) {
+          if (!mutableCookies) return;
           cookieStore.set({ name, value: "", ...options });
         },
       },

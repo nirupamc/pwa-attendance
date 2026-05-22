@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Pro-Attendance — Networks",
+  title: "Pro-Attendance — Office Network",
 };
 
 export default function NetworksLayout({

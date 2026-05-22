@@ -21,6 +21,16 @@ export interface OfficeNetwork {
   created_at: string;
 }
 
+export interface OfficeConfig {
+  id: string;
+  label: string;
+  public_ip: string;
+  added_by: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export type AttendanceType = "IN" | "OUT";
 
 export interface Attendance {
@@ -30,6 +40,7 @@ export interface Attendance {
   punched_at: string;
   bssid_at_scan: string | null;
   network_label: string | null;
+  ip_at_punch: string | null;
   qr_verified: boolean;
 }
 

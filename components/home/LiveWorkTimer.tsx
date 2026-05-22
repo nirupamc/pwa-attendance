@@ -9,20 +9,45 @@ interface LiveWorkTimerProps {
 }
 
 export const LiveWorkTimer = ({ userId }: LiveWorkTimerProps) => {
-  const { lastPunch, isIn } = useAttendanceStatus(userId);
+  const { lastPunch, todayPunches, isIn } = useAttendanceStatus(userId);
   const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
-    if (!lastPunch || !isIn) {
-      setSeconds(0);
-      return;
-    }
-    const start = new Date(lastPunch.punched_at);
-    const tick = () => setSeconds(diffSeconds(start, new Date()));
+    const computeWorkedSeconds = () => {
+      if (todayPunches.length === 0) return 0;
+
+      let total = 0;
+      let openInAt: Date | null = null;
+
+      for (const punch of todayPunches) {
+        const punchedAt = new Date(punch.punched_at);
+
+        if (punch.type === "IN") {
+          openInAt = punchedAt;
+          continue;
+        }
+
+        if (punch.type === "OUT" && openInAt) {
+          total += diffSeconds(openInAt, punchedAt);
+          openInAt = null;
+        }
+      }
+
+      if (openInAt) {
+        total += diffSeconds(openInAt, new Date());
+      }
+
+      return total;
+    };
+
+    const tick = () => setSeconds(computeWorkedSeconds());
     tick();
-    const interval = setInterval(tick, 1000);
+
+    if (!isIn) return;
+
+    const interval = window.setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [lastPunch, isIn]);
+  }, [todayPunches, isIn]);
 
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
