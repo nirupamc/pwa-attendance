@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Pro-Attendance — QR Code",
+  title: "TanTrack — QR Code",
 };
 
 export default function QrLayout({
@@ -11,3 +11,4 @@ export default function QrLayout({
 }) {
   return children;
 }
+

@@ -1,6 +1,6 @@
 {
-  "name": "Pro-Attendance by TanTech",
-  "short_name": "Pro-Attendance",
+  "name": "TanTrack by TanTech",
+  "short_name": "TanTrack",
   "description": "Secure employee attendance management",
   "start_url": "/",
   "display": "standalone",

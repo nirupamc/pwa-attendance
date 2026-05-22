@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Pro-Attendance — Leave Inbox",
+  title: "TanTrack — Leave Inbox",
 };
 
 export default function AdminLeaveLayout({
@@ -11,3 +11,4 @@ export default function AdminLeaveLayout({
 }) {
   return children;
 }
+

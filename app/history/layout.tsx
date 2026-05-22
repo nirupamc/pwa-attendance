@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Pro-Attendance — History",
+  title: "TanTrack — History",
 };
 
 export default function HistoryLayout({
@@ -11,3 +11,4 @@ export default function HistoryLayout({
 }) {
   return children;
 }
+

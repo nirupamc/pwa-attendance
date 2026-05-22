@@ -106,7 +106,7 @@ export default function LoginPage() {
       <div className="mx-auto flex max-w-md flex-col gap-8">
         <div className="text-center">
           <h1 className="font-heading text-4xl uppercase tracking-[4px] text-primary">
-            PRO-ATTENDANCE
+            TANTRACK
           </h1>
           <p className="text-xs uppercase tracking-[3px] text-text-muted">
             BY TANTECH LLC

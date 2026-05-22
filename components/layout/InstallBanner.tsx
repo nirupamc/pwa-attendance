@@ -9,7 +9,7 @@ type DeferredPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-const DISMISS_KEY = "pro-attendance-install-dismissed";
+const DISMISS_KEY = "tantrack-install-dismissed";
 const DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
 
 const isIosDevice = () =>
@@ -71,7 +71,7 @@ export const InstallBanner = () => {
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3 text-sm font-semibold">
         <div className="flex flex-col">
           <span className="uppercase tracking-[2px] font-heading text-base">
-            Install Pro-Attendance
+            Install TanTrack
           </span>
           {isIosDevice() ? (
             <span className="flex items-center gap-2 text-background/90">

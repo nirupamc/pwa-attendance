@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 self.addEventListener("push", (event: any) => {
   const data = event.data?.json() ?? {};
-  const title = data.title ?? "Pro-Attendance";
+  const title = data.title ?? "TanTrack";
   const options = {
     body: data.body ?? "You have a new notification",
     icon: "/icons/icon-192x192.png",

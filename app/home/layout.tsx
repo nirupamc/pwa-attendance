@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Pro-Attendance — Home",
+  title: "TanTrack — Home",
 };
 
 export default function HomeLayout({
@@ -11,3 +11,4 @@ export default function HomeLayout({
 }) {
   return children;
 }
+

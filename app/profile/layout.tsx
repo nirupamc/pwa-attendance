@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Pro-Attendance — Profile",
+  title: "TanTrack — Profile",
 };
 
 export default function ProfileLayout({
@@ -11,3 +11,4 @@ export default function ProfileLayout({
 }) {
   return children;
 }
+

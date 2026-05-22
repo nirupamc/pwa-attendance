@@ -4,7 +4,7 @@ import { AdminNav } from "@/components/layout/AdminNav";
 import { OfflineBanner } from "@/components/layout/OfflineBanner";
 
 export const metadata: Metadata = {
-  title: "Pro-Attendance — Admin Dashboard",
+  title: "TanTrack — Admin Dashboard",
 };
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -18,3 +18,4 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     </div>
   );
 }
+

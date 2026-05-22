@@ -17,7 +17,7 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Pro-Attendance",
+  title: "TanTrack",
   description: "Secure employee attendance management",
 };
 
@@ -32,13 +32,13 @@ export default function RootLayout({
       className={`dark ${bebasNeue.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <head>
-        <meta name="application-name" content="Pro-Attendance" />
+        <meta name="application-name" content="TanTrack" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta
           name="apple-mobile-web-app-status-bar-style"
           content="black-translucent"
         />
-        <meta name="apple-mobile-web-app-title" content="Pro-Attendance" />
+        <meta name="apple-mobile-web-app-title" content="TanTrack" />
         <meta name="theme-color" content="#FFD700" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <link rel="manifest" href="/manifest.json" />
@@ -51,3 +51,4 @@ export default function RootLayout({
     </html>
   );
 }
+
