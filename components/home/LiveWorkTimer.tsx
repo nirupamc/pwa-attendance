@@ -21,7 +21,10 @@ export const LiveWorkTimer = ({ userId }: LiveWorkTimerProps) => {
       let openInAt: Date | null = null;
       for (const punch of todayPunches) {
         const punchedAt = new Date(punch.punched_at);
-        if (punch.type === "IN") { openInAt = punchedAt; continue; }
+        if (punch.type === "IN") {
+          openInAt = punchedAt;
+          continue;
+        }
         if (punch.type === "OUT" && openInAt) {
           total += diffSeconds(openInAt, punchedAt);
           openInAt = null;
@@ -36,7 +39,10 @@ export const LiveWorkTimer = ({ userId }: LiveWorkTimerProps) => {
       setSeconds(s);
       // soft pulse every minute change
       const currentMinute = Math.floor(s / 60);
-      if (prevMinuteRef.current !== -1 && currentMinute !== prevMinuteRef.current) {
+      if (
+        prevMinuteRef.current !== -1 &&
+        currentMinute !== prevMinuteRef.current
+      ) {
         setPulsing(true);
         setTimeout(() => setPulsing(false), 700);
       }
@@ -80,7 +86,7 @@ export const LiveWorkTimer = ({ userId }: LiveWorkTimerProps) => {
       >
         {lastPunch
           ? `Punched ${lastPunch.type === "IN" ? "in" : "out"} at ${formatTime(
-              new Date(lastPunch.punched_at)
+              new Date(lastPunch.punched_at),
             )}`
           : "Not punched in yet"}
       </p>

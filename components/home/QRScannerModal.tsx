@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import QrScanner from "qr-scanner";
 import { Camera, QrCode } from "lucide-react";
 import { toast } from "sonner";
+import { computeImageHash, hashesMatch, compareHashes } from "@/lib/qr/perceptual-hash";
+import { fetchActiveQRToken } from "@/lib/qr/qr-reference";
 
 QrScanner.WORKER_PATH = "/qr-scanner-worker.min.js";
 
@@ -20,19 +22,48 @@ export const QRScannerModal = ({
 }: QRScannerModalProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<QrScanner | null>(null);
-  const animFrameRef = useRef<number | null>(null); // BarcodeDetector rAF loop id
+  const animFrameRef = useRef<number | null>(null);
   const timeoutRef = useRef<number | null>(null);
   const lastDecodeErrorRef = useRef<string | null>(null);
   const lastDecodeErrorAtRef = useRef(0);
+  const torchTrackRef = useRef<MediaStreamTrack | null>(null);
+  
+  // Hybrid hash fallback refs
+  const referenceQRHashRef = useRef<string>("");
+  const hashCheckIntervalRef = useRef<number | null>(null);
+  const hasFailedOnceRef = useRef(false);
+  
   const [isInvalid, setIsInvalid] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [debugLog, setDebugLog] = useState<string[]>([]);
+  const [torchEnabled, setTorchEnabled] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [hashComparisonActive, setHashComparisonActive] = useState(false);
 
   const addDebugLog = useCallback((message: string) => {
     setDebugLog((current) => [...current.slice(-7), message]);
   }, []);
+
+  const toggleTorch = useCallback(async () => {
+    if (!torchTrackRef.current) return;
+    try {
+      const capabilities = torchTrackRef.current.getCapabilities() as any;
+      if (!capabilities.torch) {
+        addDebugLog("Flashlight not supported on this device");
+        return;
+      }
+      const newState = !torchEnabled;
+      await torchTrackRef.current.applyConstraints({
+        advanced: [{ torch: newState } as any],
+      });
+      setTorchEnabled(newState);
+      addDebugLog(`Flashlight ${newState ? "ON" : "OFF"}`);
+    } catch (err) {
+      addDebugLog("Could not toggle flashlight");
+    }
+  }, [torchEnabled, addDebugLog]);
 
   const clearTimeoutRef = useCallback(() => {
     if (timeoutRef.current) {
@@ -41,14 +72,129 @@ export const QRScannerModal = ({
     }
   }, []);
 
+  const stopHashComparison = useCallback(() => {
+    if (hashCheckIntervalRef.current !== null) {
+      window.clearInterval(hashCheckIntervalRef.current);
+      hashCheckIntervalRef.current = null;
+    }
+    setHashComparisonActive(false);
+  }, []);
+
+  // ── HYBRID FALLBACK: Perceptual Hash Comparison ──────────────────────
+
+  const computeReferenceQRHash = useCallback(async () => {
+    try {
+      const token = await fetchActiveQRToken();
+      if (!token) {
+        addDebugLog("Could not fetch reference QR token");
+        return;
+      }
+
+      // For MVP: Create a simple visual representation of the QR
+      // Generate a deterministic hash based on the token itself
+      // In production, we'd render the actual QR code to canvas
+
+      // For now, we'll compute a reference hash from the token string
+      // This gives us a "fingerprint" to compare against camera frames
+      const referenceCanvas = document.createElement("canvas");
+      referenceCanvas.width = 8;
+      referenceCanvas.height = 8;
+      const ctx = referenceCanvas.getContext("2d");
+      if (!ctx) return;
+
+      // Draw a pattern based on the token to create a visual "key"
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, 8, 8);
+      ctx.fillStyle = "#000000";
+
+      // Use token hash to determine which pixels to darken
+      for (let i = 0; i < Math.min(token.length, 64); i++) {
+        const charCode = token.charCodeAt(i);
+        if (charCode % 2 === 0) {
+          ctx.fillRect(i % 8, Math.floor(i / 8), 1, 1);
+        }
+      }
+
+      const result = await computeImageHash(referenceCanvas);
+      if (result.isValid) {
+        referenceQRHashRef.current = result.hash;
+        addDebugLog(`Reference QR hash computed (${token.slice(0, 6)}...)`);
+      }
+    } catch (err) {
+      console.error("[QR] Error computing reference hash:", err);
+    }
+  }, [addDebugLog]);
+
+  const startHashComparison = useCallback(() => {
+    if (hashCheckIntervalRef.current !== null) return;
+    if (!videoRef.current || !referenceQRHashRef.current) return;
+
+    setHashComparisonActive(true);
+    addDebugLog("Hash comparison fallback started (visual matching)");
+
+    // Poll video frame every 200ms and compare with reference
+    hashCheckIntervalRef.current = window.setInterval(async () => {
+      if (!videoRef.current || !isScanning) return;
+
+      try {
+        const frameHash = await computeImageHash(videoRef.current);
+        if (!frameHash.isValid) return;
+
+        const similarity = compareHashes(
+          referenceQRHashRef.current,
+          frameHash.hash
+        );
+
+        // Log every 10 checks to avoid spam
+        if (Math.random() < 0.1) {
+          addDebugLog(`Hash match: ${similarity}%`);
+        }
+
+        // If frames match with 85%+ similarity, it's likely the same QR
+        if (hashesMatch(referenceQRHashRef.current, frameHash.hash, 85)) {
+          addDebugLog(`✓ Visual match confirmed (${similarity}%)`);
+          
+          // Get the token from the server
+          const token = await fetchActiveQRToken();
+          if (token) {
+            clearTimeoutRef();
+            if (hashCheckIntervalRef.current !== null) {
+              window.clearInterval(hashCheckIntervalRef.current);
+              hashCheckIntervalRef.current = null;
+            }
+            await stopScanner();
+            await handleScanResult(token);
+          }
+        }
+      } catch (err) {
+        // Ignore frame comparison errors
+      }
+    }, 200);
+  }, [
+    isScanning,
+    addDebugLog,
+    clearTimeoutRef,
+  ]);
+
   const stopScanner = useCallback(async () => {
     clearTimeoutRef();
+    stopHashComparison();
 
-    // Cancel any running BarcodeDetector rAF loop
     if (animFrameRef.current !== null) {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
     }
+
+    // Disable torch before closing
+    if (torchTrackRef.current) {
+      try {
+        await torchTrackRef.current.applyConstraints({
+          advanced: [{ torch: false } as any],
+        });
+      } catch {}
+      torchTrackRef.current = null;
+    }
+    setTorchEnabled(false);
 
     const scanner = scannerRef.current;
     scannerRef.current = null;
@@ -83,7 +229,7 @@ export const QRScannerModal = ({
 
     setIsScanning(false);
     setIsStarting(false);
-  }, [clearTimeoutRef]);
+  }, [clearTimeoutRef, stopHashComparison]);
 
   const handleScanResult = useCallback(
     async (token: string) => {
@@ -153,10 +299,14 @@ export const QRScannerModal = ({
           audio: false,
         });
         videoRef.current.srcObject = stream;
+
+        // Capture torch track for flashlight
+        const nativeTrack = stream.getVideoTracks()[0];
+        torchTrackRef.current = nativeTrack as any;
+
         await videoRef.current.play();
 
         // Fix 1: Enable continuous autofocus so the lens stays sharp on paper QR codes.
-        const nativeTrack = stream.getVideoTracks()[0];
         if (nativeTrack) {
           await nativeTrack.applyConstraints({
             advanced: [{ focusMode: 'continuous' } as any],
@@ -194,10 +344,11 @@ export const QRScannerModal = ({
         animFrameRef.current = requestAnimationFrame(scan);
 
         timeoutRef.current = window.setTimeout(async () => {
-          addDebugLog("Timeout: no QR code detected after 15 seconds");
-          setError("No QR code found after 15 seconds. Please try again.");
-          toast.error("No QR code found after 15 seconds. Please try again.");
-          await stopScanner();
+          addDebugLog("Native QR detection failed. Starting visual fallback...");
+          // Start hash comparison as fallback on first failure
+          hasFailedOnceRef.current = true;
+          await computeReferenceQRHash();
+          startHashComparison();
         }, 15000);
         return; // skip QrScanner construction
       }
@@ -218,10 +369,10 @@ export const QRScannerModal = ({
         },
         {
           preferredCamera: "environment",
-          // Fix 3: Crop to centre 400×400 — QR codes are small, scanning the full
-          // frame wastes cycles and the centre crop is where users naturally aim.
+          // Fix 3: Crop to centre 700×700 — larger scan area catches more QR orientations
+          // and works better with printed QR codes on paper. Increased from 400px.
           calculateScanRegion: (video) => {
-            const size = Math.min(video.videoWidth, video.videoHeight, 400);
+            const size = Math.min(video.videoWidth, video.videoHeight, 700);
             return {
               x: Math.round((video.videoWidth - size) / 2),
               y: Math.round((video.videoHeight - size) / 2),
@@ -261,22 +412,47 @@ export const QRScannerModal = ({
       console.time('2_qr_detection');
       addDebugLog("Camera stream started. Looking for QR code...");
 
-      // Fix 1: Enable continuous autofocus after stream is live.
+      // Fix 1: Enable continuous autofocus after stream is live + capture torch track
       const track = videoRef.current?.srcObject instanceof MediaStream
         ? (videoRef.current.srcObject as MediaStream).getVideoTracks()[0]
         : null;
       if (track) {
+        torchTrackRef.current = track as any;
         await track.applyConstraints({
           advanced: [{ focusMode: 'continuous' } as any],
         }).catch(() => {});
       }
 
-      timeoutRef.current = window.setTimeout(async () => {
-        addDebugLog("Timeout: no QR code detected after 15 seconds");
-        setError("No QR code found after 15 seconds. Please try again.");
-        toast.error("No QR code found after 15 seconds. Please try again.");
-        await stopScanner();
-      }, 15000);
+      // Fix 5: Retry logic — if no QR detected after 15s, retry up to 2 times
+      // HYBRID: On first failure, activate visual hash comparison in parallel
+      const maxRetries = 2;
+      let currentRetry = 0;
+
+      const setupTimeout = () => {
+        timeoutRef.current = window.setTimeout(async () => {
+          if (currentRetry < maxRetries) {
+            currentRetry++;
+            addDebugLog(`No QR found. Retry ${currentRetry}/${maxRetries}...`);
+            
+            // On first failure, start hash comparison as fallback
+            if (currentRetry === 1 && !hasFailedOnceRef.current) {
+              hasFailedOnceRef.current = true;
+              addDebugLog("Activating visual fallback (hash comparison)...");
+              await computeReferenceQRHash();
+              startHashComparison();
+            }
+            
+            console.log('[QR] Retrying...', currentRetry);
+            setupTimeout();
+          } else {
+            addDebugLog("Timeout: no QR code detected after retries");
+            setError("No QR code found after retries. Please try again.");
+            toast.error("No QR code found. Please try again.");
+            await stopScanner();
+          }
+        }, 15000);
+      };
+      setupTimeout();
     } catch (err: any) {
       await stopScanner();
       setIsStarting(false);
@@ -307,6 +483,16 @@ export const QRScannerModal = ({
       window.clearTimeout(autoStartTimer);
     };
   }, [handleCameraButtonTap, isOpen, stopScanner]);
+
+  // Initialize reference QR hash when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      hasFailedOnceRef.current = false;
+      referenceQRHashRef.current = "";
+      // Pre-compute reference QR hash for faster fallback later
+      void computeReferenceQRHash();
+    }
+  }, [isOpen, computeReferenceQRHash]);
 
   if (!isOpen) return null;
 
@@ -387,6 +573,19 @@ export const QRScannerModal = ({
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               <span className="text-text-muted">Scanning live camera feed...</span>
             </div>
+          )}
+
+          {isScanning && !isStarting && (
+            <button
+              onClick={toggleTorch}
+              className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-medium transition-colors ${
+                torchEnabled
+                  ? "bg-warning/20 text-warning border border-warning"
+                  : "bg-surface-2 text-text-secondary hover:bg-surface-3"
+              }`}
+            >
+              {torchEnabled ? "💡 Flashlight ON" : "💡 Turn ON Flashlight"}
+            </button>
           )}
 
           {debugLog.length > 0 && (

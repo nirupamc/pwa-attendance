@@ -9,16 +9,12 @@ self.addEventListener("push", (event: any) => {
     vibrate: [200, 100, 200],
     data: { url: data.url ?? "/leave" },
   };
-  event.waitUntil(
-    (self as any).registration.showNotification(title, options)
-  );
+  event.waitUntil((self as any).registration.showNotification(title, options));
 });
 
 self.addEventListener("notificationclick", (event: any) => {
   event.notification.close();
   event.waitUntil(
-    (self as any).clients.openWindow(
-      event.notification.data?.url ?? "/leave"
-    )
+    (self as any).clients.openWindow(event.notification.data?.url ?? "/leave"),
   );
 });

@@ -3,7 +3,10 @@ interface SkeletonCardProps {
   className?: string;
 }
 
-export const SkeletonCard = ({ lines = 2, className = "" }: SkeletonCardProps) => (
+export const SkeletonCard = ({
+  lines = 2,
+  className = "",
+}: SkeletonCardProps) => (
   <div
     className={`rounded-xl border border-border bg-surface p-4 ${className}`}
     aria-busy="true"

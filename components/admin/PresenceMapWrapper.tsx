@@ -13,7 +13,7 @@ const PresenceMap = dynamic(
         <span className="text-sm text-text-muted">Loading map…</span>
       </div>
     ),
-  }
+  },
 );
 
 interface PresenceMapWrapperProps {

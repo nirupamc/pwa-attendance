@@ -12,7 +12,7 @@ export const EASE = {
 // ── Stagger fade-up entrance ─────────────────────────────────────────────────
 export function staggerIn(
   targets: Element[] | NodeListOf<Element> | string,
-  delay = 0
+  delay = 0,
 ) {
   return gsap.fromTo(
     targets,
@@ -26,7 +26,7 @@ export function staggerIn(
       ease: EASE.smooth,
       delay,
       clearProps: "filter",
-    }
+    },
   );
 }
 
@@ -52,12 +52,12 @@ export function punchSuccess(el: Element) {
 export function fadeSlideIn(
   el: Element,
   from: { y?: number; x?: number; opacity?: number } = { y: 12, opacity: 0 },
-  duration = 0.35
+  duration = 0.35,
 ) {
   return gsap.fromTo(
     el,
     { opacity: from.opacity ?? 0, y: from.y ?? 0, x: from.x ?? 0 },
-    { opacity: 1, y: 0, x: 0, duration, ease: EASE.smooth, clearProps: "all" }
+    { opacity: 1, y: 0, x: 0, duration, ease: EASE.smooth, clearProps: "all" },
   );
 }
 
