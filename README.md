@@ -2,11 +2,22 @@
 
 A modern, secure **Progressive Web App (PWA)** for employee attendance management with QR code verification, geofencing, device fingerprinting, and role-based access control.
 
-<img width="403" height="859" alt="image" src="https://github.com/user-attachments/assets/d6a8d430-f63f-436d-ad2c-13b10a4b4ef8" />
-<img width="396" height="846" alt="image" src="https://github.com/user-attachments/assets/08dc6f0f-bf59-4a44-b632-94ccf48dfd12" />
-<img width="395" height="859" alt="image" src="https://github.com/user-attachments/assets/c8167ace-de27-4be9-817a-9797e79c2b53" />
-<img width="398" height="850" alt="image" src="https://github.com/user-attachments/assets/cd844604-8b40-4b97-a692-89dd92a194a5" />
-
+<table width="100%">
+  <tr>
+    <td width="25%" align="center">
+      <img src="https://github.com/user-attachments/assets/d6a8d430-f63f-436d-ad2c-13b10a4b4ef8" alt="image 1" width="100%" />
+    </td>
+    <td width="25%" align="center">
+      <img src="https://github.com/user-attachments/assets/08dc6f0f-bf59-4a44-b632-94ccf48dfd12" alt="image 2" width="100%" />
+    </td>
+    <td width="25%" align="center">
+      <img src="https://github.com/user-attachments/assets/c8167ace-de27-4be9-817a-9797e79c2b53" alt="image 3" width="100%" />
+    </td>
+    <td width="25%" align="center">
+      <img src="https://github.com/user-attachments/assets/cd844604-8b40-4b97-a692-89dd92a194a5" alt="image 4" width="100%" />
+    </td>
+  </tr>
+</table>
 
 
 🚀 **Live Demo**: [pwa-attendance-lac.vercel.app](https://pwa-attendance-lac.vercel.app)
